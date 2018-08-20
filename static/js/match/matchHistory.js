@@ -8,6 +8,7 @@ define(['overallReplayGraph'], function (replayGraphs) {
         document.getElementById(actionElementId).addEventListener("click", (ev) => {
             touched = true;
             let elements = document.getElementById(hostId).querySelectorAll("canvas");
+            console.log(elements);
             if (elements.length <= 0) {
                 replayGraphs.showOverallReplayGraphs(hostId, graphClass, labelData, replayData);
                 console.log('creating canvas');

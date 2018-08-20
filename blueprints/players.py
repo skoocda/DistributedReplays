@@ -26,6 +26,7 @@ regex = re.compile('[0-9]{17}')
 
 @bp.route('/overview/<id_>')  # ID must be always at the end
 def view_player(id_):
+    n = 0
     print(re.match(regex, id_))
     if len(id_) != 17 or re.match(regex, id_) is None:
         r = vanity_to_steam_id(id_)
@@ -35,8 +36,9 @@ def view_player(id_):
         return redirect(url_for('players.view_player', id_=id_))
     session = current_app.config['db']()
     rank = get_rank(id_)
+    count = session.query(PlayerGame).filter(PlayerGame.player == id_).count()
     games = session.query(PlayerGame).filter(PlayerGame.player == id_).filter(
-        PlayerGame.game != None).all()  # type: List[PlayerGame]
+        PlayerGame.game != None).join(Game).order_by(Game.match_date)[n * 20: (n + 1) * 20]  # type: List[PlayerGame]
     stats_query = func.avg(PlayerGame.score), func.avg(PlayerGame.goals), func.avg(PlayerGame.assists), \
                   func.avg(PlayerGame.saves), func.avg(PlayerGame.shots), func.avg(PlayerGame.a_possession), \
                   func.avg(PlayerGame.a_hits - PlayerGame.a_dribble_conts), \
@@ -50,7 +52,7 @@ def view_player(id_):
         print(fav_car_str)
         # car_arr = [g.car for g in games]
         favorite_car = constants.cars[int(fav_car_str[0])]
-        favorite_car_pctg = fav_car_str[1] / len(games)
+        favorite_car_pctg = fav_car_str[1] / count
         q = session.query(*stats_query).filter(PlayerGame.a_hits > 0)
         global_stats = q.first()
         stats = q.filter(PlayerGame.player == id_).first()
@@ -65,7 +67,23 @@ def view_player(id_):
     if steam_profile is None:
         return render_template('error.html', error="Unable to find the requested profile")
     return render_template('player.html', games=games, rank=rank, profile=steam_profile, car=favorite_car,
-                           favorite_car_pctg=favorite_car_pctg, stats=stats)
+                           favorite_car_pctg=favorite_car_pctg, stats=stats, id=id_)
+
+
+@bp.route('/overview/<id_>/history/<n>')
+def render_player_history(id_, n):
+    n = int(n) - 1
+    print(re.match(regex, id_))
+    if len(id_) != 17 or re.match(regex, id_) is None:
+        r = vanity_to_steam_id(id_)
+        if r is None:
+            return redirect(url_for('home'))
+        id_ = r['response']['steamid']
+        return redirect(url_for('players.view_player', id_=id_))
+    session = current_app.config['db']()
+    games = session.query(PlayerGame).filter(PlayerGame.player == id_).filter(
+        PlayerGame.game != None).join(Game).order_by(Game.match_date)[n * 20: (n + 1) * 20]  # type: List[PlayerGame]
+    return jsonify({'html': render_template('partials/replay/match_history.html', games=games)})
 
 
 @bp.route('/compare/<id1>/<id2>')
